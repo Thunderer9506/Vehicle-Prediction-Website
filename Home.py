@@ -6,6 +6,13 @@ import matplotlib.ticker as ticker
 import seaborn as sns
 import io
 
+st.set_page_config(
+    page_title="Home",
+    page_icon="👋",
+)
+
+st.sidebar.success("Select a demo above.")
+
 cleaned_data = pd.read_csv('cleaned_dataset.csv')
 
 st.title("Vehicle Prdiction Model")
