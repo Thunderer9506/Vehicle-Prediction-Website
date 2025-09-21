@@ -12,7 +12,7 @@ This project is a machine learning-powered web application designed to predict t
 
 You can try out the live prediction model at the following link:
 
-**[➡️ Live Website Link](https://thunderer9506-vehicle-prediction-website-home-bszcq9.streamlit.app/Prediction)** *(Replace with your actual deployment URL)*
+**[➡️ Live Website Link](https://thunderer9506-vehicle-prediction-website-home-bszcq9.streamlit.app/Prediction)**
 
 ---
 ## ✨ Features
