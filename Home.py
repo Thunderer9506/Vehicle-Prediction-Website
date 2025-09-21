@@ -13,7 +13,7 @@ st.set_page_config(
 
 st.sidebar.success("Go to Prediction Page to Predict the price of your Car")
 
-cleaned_data = pd.read_csv('cleaned_dataset.csv')
+cleaned_data = pd.read_csv('cleanedData.csv')
 
 st.title("Vehicle Prdiction Model")
 
