@@ -81,7 +81,7 @@ def setup_and_train_model():
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    model = RandomForestRegressor(n_estimators=300, max_features=0.24, random_state=42, oob_score=True, max_depth=20, min_samples_leaf=1, min_samples_split=2)
+    model = RandomForestRegressor(n_estimators=300, max_features=0.57, random_state=42, oob_score=True, max_depth=20, min_samples_leaf=1, min_samples_split=2)
     model.fit(X_scaled, y)
     
     # 5. PREPARE UI DATA
@@ -183,7 +183,7 @@ with col2:
     transmission = st.selectbox("Transmission", options=ui_data['transmission'].unique(), index=0)
     trim = st.selectbox("Trim", options=ui_data['trim'].unique(), index=0)
     
-    mileage = st.slider("Mileage", 0, 100000, 5000, step=100)
+    mileage = st.slider("Mileage", 0, 24, 7, step=1)
 
 # Display user choices in the sidebar
 selections = {
