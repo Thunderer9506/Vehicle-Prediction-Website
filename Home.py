@@ -11,7 +11,7 @@ st.set_page_config(
     page_icon="👋",
 )
 
-st.sidebar.success("Select a demo above.")
+st.sidebar.success("Go to Prediction Page to Predict the price of your Car")
 
 cleaned_data = pd.read_csv('cleaned_dataset.csv')
 
@@ -20,8 +20,8 @@ st.title("Vehicle Prdiction Model")
 st.write("## Statistics")
 
 st.write('### Shape of the data: ')
-st.write('Rows : 894')
-st.write(f'Cols( 17 ) : `{", ".join(['name','description','make','model','year','price','engine','cylinders','fuel','mileage','transmission','trim','body','doors','exterior_color','interior_color','drivetrain'])}`')
+st.write(f'Rows : {cleaned_data.shape[0]}')
+st.write(f'Cols( 17 ) : `{", ".join(list(cleaned_data.columns))}`')
 
 buffer = io.StringIO()
 cleaned_data.info(buf=buffer)
