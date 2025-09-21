@@ -47,10 +47,10 @@ The model's high accuracy (R² score of **0.82**) is a result of a meticulous da
 ---
 ## 📂 Project Structure
 .
-/Pages
-  |--Prediction.py
-├── 📄 cleanedData.csv
-├── 📄 Hello.py
-├── 📄 README.md
-├── 📄 requirements.txt
-└── 📓 Vehicle Prediction.ipynb
+/Pages <br>
+  |--Prediction.py<br>
+├── 📄 cleanedData.csv<br>
+├── 📄 Hello.py<br>
+├── 📄 README.md<br>
+├── 📄 requirements.txt<br>
+└── 📓 Vehicle Prediction.ipynb<br>
