@@ -1,26 +1,10 @@
-# TODO: Re clean the data properly in jupyter notebook
-# TODO: Change the hardcode values dynamic so that they change according to whats acctually is present in
-#       the data
-# TODO: Put some initial values in select box
-
-# idx = 0
-# engineDelete = []
-# def func(x):
-#     global idx
-#     if ('<' in x):
-#         engineDelete.append(idx)
-#         print(idx)
-#     idx += 1
-
-# cleanedData['engine'].apply(func)
-
-
+# main.py
 import streamlit as st
 import pandas as pd
+import numpy as np
+import re
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-
-cleanedData = pd.read_csv('./cleaned_dataset.csv')
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 # --- Page Configuration (should be the first st command) ---
 st.set_page_config(
@@ -28,117 +12,216 @@ st.set_page_config(
     page_icon="🔮",
 )
 
-# --- Caching the Model Loading and Training ---
+# --- Caching the Model and Preprocessing Objects ---
 @st.cache_data
-def trainingModel():
+def setup_and_train_model():
     """
-    Loads data, trains the RandomForestRegressor model, and returns the
-    model, scaler, and feature columns. This function is cached for efficiency.
+    Performs all data loading, cleaning, feature engineering, encoding, scaling,
+    and model training. Caches the final objects needed for prediction.
     """
+    # 1. LOAD DATA
+    data = pd.read_csv('./cleanedData.csv')
+    # Add this line
+    data.drop(['exterior_color', 'interior_color'], axis=1, inplace=True)
     
-    # Use a fixed year from training for consistent 'age' calculation
-    CURRENT_YEAR = 2024
-    
-    scaler = StandardScaler()
-    predictionData = cleanedData[['make', 'year', 'price', 'cylinders', 'fuel', 'mileage', 'body', 'doors', 'drivetrain']].copy()
-    predictionData.loc[:, 'age'] = CURRENT_YEAR - predictionData['year']
-    
-    # One-hot encode categorical features
-    encodedData = pd.get_dummies(predictionData, columns=['make', 'fuel', 'body','drivetrain'], drop_first=True)
+    # 2. FEATURE ENGINEERING (This must be identical for training and prediction)
+    # --- Engine ---
+    data['engine_liters'] = data['engine'].str.extract(r'(\d\.?\d*)L', flags=re.IGNORECASE).astype(float)
+    data['is_turbo'] = data['engine'].str.contains('Turbo', case=False, na=False).astype(int)
+    data['is_hybrid'] = data['engine'].str.contains('Hybrid', case=False, na=False).astype(int)
+    data['valve_count'] = data['engine'].str.extract(r'(\d{1,2})V', flags=re.IGNORECASE).astype(float)
+    data['engine_liters'] = data['engine_liters'].fillna(data['engine_liters'].median())
+    data['valve_count'] = data['valve_count'].fillna(data['valve_count'].median())
 
-    # Define features (X) and target (y)
-    # Explicitly drop 'year' as 'age' is the feature we are using
-    X = encodedData.drop(['price', 'year'], axis=1)
-    y = encodedData['price']
+    # --- Transmission ---
+    data['gears'] = data['transmission'].str.extract(r'(\d{1,2})-Speed', flags=re.IGNORECASE).astype(float)
+    conditions = [
+        data['transmission'].str.contains('CVT', case=False, na=False),
+        data['transmission'].str.contains('Automatic', case=False, na=False)
+    ]
+    choices = ['CVT', 'Automatic']
+    data['transmission_type'] = np.select(conditions, choices, default='Other')
+    data['gears'] = data['gears'].fillna(data['gears'].median())
+    
+    # --- Model & Trim (Grouping rare categories) ---
+    model_counts = data['model'].value_counts()
+    trim_counts = data['trim'].value_counts()
+    rare_models = model_counts[model_counts < 10].index
+    rare_trims = trim_counts[trim_counts < 5].index
+    data['model_cleaned'] = data['model'].replace(rare_models, 'Other')
+    data['trim_cleaned'] = data['trim'].replace(rare_trims, 'Other')
 
-    # Save feature column order for later use during prediction
+    # --- Age ---
+    current_year = 2025 # Use a fixed year consistent with training
+    data['age'] = current_year - data['year']
+    
+    # --- Drop original and unused columns ---
+    data.drop(['engine', 'transmission', 'model', 'trim'], axis=1, inplace=True)
+    
+    # 3. LABEL ENCODING
+    categorical_cols = [
+        'make', 'fuel', 'body', 'drivetrain', 
+        'model_cleaned', 'trim_cleaned', 'transmission_type'
+    ]
+    
+    # Store fitted encoders to transform user input later
+    label_encoders = {}
+    for col in categorical_cols:
+        le = LabelEncoder()
+        data[col] = le.fit_transform(data[col])
+        label_encoders[col] = le
+        
+    # 4. MODEL TRAINING
+    X = data.drop('price', axis=1)
+    y = data['price']
+    
+    # Save feature column order for prediction
     feature_columns = X.columns.tolist()
 
-    X_train_scaled = scaler.fit_transform(X)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
 
-    # Initialize and train the model
-    tunedregressor = RandomForestRegressor(n_estimators=100, max_features=0.57, random_state=0, oob_score=True)
-    tunedregressor.fit(X_train_scaled, y)
+    model = RandomForestRegressor(n_estimators=300, max_features=0.24, random_state=42, oob_score=True, max_depth=20, min_samples_leaf=1, min_samples_split=2)
+    model.fit(X_scaled, y)
     
-    return tunedregressor, scaler, feature_columns, CURRENT_YEAR
-
-# --- Load Model and necessary objects ---
-model, scaler, FEATURE_COLUMNS, CURRENT_YEAR = trainingModel()
-
-
-# --- Prediction Function (Now accepts arguments) ---
-## <<< CHANGE 1: The function now takes all the user inputs as arguments.
-def predictData(make, year, cylinders, fuel, mileage, body, doors, drivetrain):
-    """
-    Takes user inputs, preprocesses them, and returns a price prediction.
-    """
-    # Create a single-row DataFrame from the inputs
-    data = {'make': make, 'year': year, 'cylinders': cylinders, 'fuel': fuel, 
-            'mileage': mileage, 'body': body, 'doors': doors, 'drivetrain': drivetrain}
-    df = pd.DataFrame([data])
+    # 5. PREPARE UI DATA
+    # Load original cleaned data again to get text values for dropdowns
+    ui_data = pd.read_csv('./cleanedData.csv')
+    make_to_models = ui_data.groupby('make')['model'].unique().apply(list).to_dict()
     
-    # Feature Engineering: Create 'age' feature consistent with training
+    # Dictionary to return all necessary objects
+    artifacts = {
+        "model": model,
+        "scaler": scaler,
+        "feature_columns": feature_columns,
+        "label_encoders": label_encoders,
+        "current_year": current_year,
+        "rare_models": rare_models,
+        "rare_trims": rare_trims,
+        "ui_data": ui_data,
+        "make_to_models": make_to_models
+    }
+    return artifacts
+
+# --- Load all artifacts from the setup function ---
+artifacts = setup_and_train_model()
+model = artifacts["model"]
+scaler = artifacts["scaler"]
+FEATURE_COLUMNS = artifacts["feature_columns"]
+label_encoders = artifacts["label_encoders"]
+CURRENT_YEAR = artifacts["current_year"]
+rare_models = artifacts["rare_models"]
+rare_trims = artifacts["rare_trims"]
+ui_data = artifacts["ui_data"]
+make_to_models = artifacts["make_to_models"]
+
+# --- Prediction Function ---
+def predict_price(input_data):
+    """
+    Takes a dictionary of user inputs, applies the full preprocessing pipeline,
+    and returns a price prediction.
+    """
+    df = pd.DataFrame([input_data])
+    
+    # Apply the same feature engineering steps
+    df['engine_liters'] = df['engine'].str.extract(r'(\d\.?\d*)L', flags=re.IGNORECASE).astype(float).fillna(ui_data['engine'].str.extract(r'(\d\.?\d*)L', flags=re.IGNORECASE).astype(float).median())
+    df['is_turbo'] = df['engine'].str.contains('Turbo', case=False, na=False).astype(int)
+    df['is_hybrid'] = df['engine'].str.contains('Hybrid', case=False, na=False).astype(int)
+    df['valve_count'] = df['engine'].str.extract(r'(\d{1,2})V', flags=re.IGNORECASE).astype(float).fillna(ui_data['engine'].str.extract(r'(\d{1,2})V', flags=re.IGNORECASE).astype(float).median())
+    df['gears'] = df['transmission'].str.extract(r'(\d{1,2})-Speed', flags=re.IGNORECASE).astype(float).fillna(ui_data['transmission'].str.extract(r'(\d{1,2})-Speed', flags=re.IGNORECASE).astype(float).median())
+    df['transmission_type'] = np.select([df['transmission'].str.contains('CVT', case=False, na=False), df['transmission'].str.contains('Automatic', case=False, na=False)], ['CVT', 'Automatic'], default='Other')
+    df['model_cleaned'] = df['model'].apply(lambda x: 'Other' if x in rare_models else x)
+    df['trim_cleaned'] = df['trim'].apply(lambda x: 'Other' if x in rare_trims else x)
     df['age'] = CURRENT_YEAR - df['year']
-
-    # One-hot encode the new data
-    encoded = pd.get_dummies(df, columns=['make', 'fuel', 'body','drivetrain'], drop_first=True)
     
-    # Align columns with the training data, filling missing columns with 0
-    encoded_aligned = encoded.reindex(columns=FEATURE_COLUMNS, fill_value=0)
-
-    # Scale the input data using the already-fitted scaler
-    X_input_scaled = scaler.transform(encoded_aligned)
-
-    # Make the prediction
+    df.drop(['engine', 'transmission', 'model', 'trim'], axis=1, inplace=True)
+    
+    # Apply fitted label encoders
+    for col, le in label_encoders.items():
+        # Handle unseen values by mapping them to a known category, e.g., the first one
+        df[col] = df[col].apply(lambda x: x if x in le.classes_ else le.classes_[0])
+        df[col] = le.transform(df[col])
+        
+    # Align columns
+    df_aligned = df.reindex(columns=FEATURE_COLUMNS, fill_value=0)
+    
+    # Scale and predict
+    X_input_scaled = scaler.transform(df_aligned)
     prediction = model.predict(X_input_scaled)
     
     return round(float(prediction[0]), 2)
 
-
 # --- Streamlit User Interface ---
 st.title("🚗 Vehicle Price Prediction Model")
-
-# Sidebar for instructions and displaying user choices
-st.sidebar.success("1. Choose Options\n" "2. Click on Predict Button")
+st.sidebar.success("1. Choose Vehicle Options\n2. Click 'Predict'")
 st.sidebar.divider()
 st.sidebar.header("Your Selections:")
 
-# Main page layout
-col1, col2 = st.columns([1, 1.5]) # Give more space to the inputs
+col1, col2 = st.columns([1, 1.5])
 
-# --- Input Widgets in the second column ---
 with col2:
     st.header("Choose Vehicle Features")
-    make = st.selectbox("Make", list(cleanedData['make'].unique()))
-    year = st.selectbox("Year", [2025, 2024, 2023])
-    cylinders = st.selectbox("Cylinders", [3, 4, 6, 8, 0]) # 0 for electric
-    fuel = st.selectbox("Fuel", ['Gasoline', 'Diesel', 'Hybrid', 'Electric', 'E85 Flex Fuel',
-                                 'PHEV Hybrid Fuel', 'Diesel (B20 capable)'])
-    mileage = st.slider("Mileage", 0, 6000, 10, step=10) # Slider is better for numeric input
-    body = st.selectbox("Body", ['SUV', 'Pickup Truck', 'Sedan', 'Passenger Van', 'Cargo Van',
-                                 'Hatchback', 'Convertible', 'Minivan'])
-    doors = st.selectbox("Doors", [2, 3, 4, 5])
-    drivetrain = st.selectbox("Drivetrain", ['Four-wheel Drive', 'Rear-wheel Drive', 'All-wheel Drive',
-                                             'Front-wheel Drive'])
+    
+    # --- Dynamic and Dependent Dropdowns ---
+    make = st.selectbox("Make", options=list(make_to_models.keys()), index=0)
+    available_models = make_to_models[make]
+    
+    # <<< FIX 1: Rename this variable to avoid collision >>>
+    model_choice = st.selectbox("Model", options=available_models, index=0)
+    
+    year_options = sorted(ui_data['year'].unique(), reverse=True)
+    year = st.selectbox("Year", options=year_options, index=0)
+    
+    cylinders = st.selectbox("Cylinders", options=sorted(ui_data['cylinders'].unique()), index=2)
+    fuel = st.selectbox("Fuel", options=ui_data['fuel'].unique(), index=0)
+    body = st.selectbox("Body", options=ui_data['body'].unique(), index=0)
+    doors = st.selectbox("Doors", options=sorted(ui_data['doors'].unique()), index=2)
+    drivetrain = st.selectbox("Drivetrain", options=ui_data['drivetrain'].unique(), index=0)
+    
+    # Add new inputs
+    engine = st.selectbox("Engine", options=ui_data['engine'].unique(), index=0)
+    transmission = st.selectbox("Transmission", options=ui_data['transmission'].unique(), index=0)
+    trim = st.selectbox("Trim", options=ui_data['trim'].unique(), index=0)
+    
+    mileage = st.slider("Mileage", 0, 100000, 5000, step=100)
 
 # Display user choices in the sidebar
-st.sidebar.write(f"**Make:** {make}")
-st.sidebar.write(f"**Year:** {year}")
-st.sidebar.write(f"**Cylinders:** {cylinders}")
-st.sidebar.write(f"**Fuel:** {fuel}")
-st.sidebar.write(f"**Mileage:** {mileage}")
-st.sidebar.write(f"**Body:** {body}")
-st.sidebar.write(f"**Doors:** {doors}")
-st.sidebar.write(f"**Drivetrain:** {drivetrain}")
+selections = {
+    "Make": make, 
+    "Model": model_choice, # <<< FIX 2: Use the new variable name here >>>
+    "Year": year, 
+    "Cylinders": cylinders,
+    "Fuel": fuel, 
+    "Body": body, 
+    "Doors": doors, 
+    "Drivetrain": drivetrain,
+    "Engine": engine, 
+    "Transmission": transmission, 
+    "Trim": trim, 
+    "Mileage": mileage
+}
 
-# --- Prediction Display and Button in the first column ---
+for label, value in selections.items():
+    st.sidebar.write(f"**{label}:** {value}")
+
 with col1:
     st.header("Predicted Price")
-    
-    # Prediction button
     if st.button("Predict 🔮", use_container_width=True):
-        ## <<< CHANGE 2: Pass the widget values directly to the function.
-        price = predictData(make, year, cylinders, fuel, mileage, body, doors, drivetrain)
+        input_data = {
+            'make': make, 
+            'model': model_choice, # <<< FIX 3: And use the new variable name here >>>
+            'year': year, 
+            'cylinders': cylinders, 
+            'fuel': fuel, 
+            'mileage': mileage, 
+            'body': body, 
+            'doors': doors, 
+            'drivetrain': drivetrain,
+            'engine': engine, 
+            'transmission': transmission, 
+            'trim': trim
+        }
+        price = predict_price(input_data)
         st.metric("Estimated Value", f"$ {price:,.2f}")
     else:
         st.metric("Estimated Value", "$ 0.00")
