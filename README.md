@@ -12,7 +12,7 @@ This project is a machine learning-powered web application designed to predict t
 
 You can try out the live prediction model at the following link:
 
-**[➡️ Live Website Link](https://your-streamlit-app-url.com)** *(Replace with your actual deployment URL)*
+**[➡️ Live Website Link](https://your-streamlit-app-url.com)**
 
 ---
 ## ✨ Features
@@ -54,3 +54,10 @@ The model's high accuracy (R² score of **0.82**) is a result of a meticulous da
 ├── 📄 README.md<br>
 ├── 📄 requirements.txt<br>
 └── 📓 Vehicle Prediction.ipynb<br>
+
+---
+## 🖼️ ScreenShots
+1. Home page
+  ![Home page](Screenshot/Home%20Page.png)
+2. Prediction Page
+  ![Prediction Page](Screenshot/Prediction%20Page.png)
