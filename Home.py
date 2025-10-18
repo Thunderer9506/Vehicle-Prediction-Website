@@ -4,135 +4,165 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import seaborn as sns
-import io
 
+# -----------------------------------------
+# 🎨 Streamlit Page Configuration
+# -----------------------------------------
 st.set_page_config(
-    page_title="Home",
-    page_icon="👋",
+    page_title="Vehicle Price Analysis Dashboard",
+    page_icon="🚗",
+    layout="wide"
 )
 
-st.sidebar.success("Go to Prediction Page to Predict the price of your Car")
+# Sidebar
+with st.sidebar:
+    st.header("📍 Navigation")
+    st.success("👉 Go to Prediction Page to predict your car price")
+    st.markdown("---")
+    st.info("This dashboard gives a detailed overview of vehicle data and trends.")
 
-cleaned_data = pd.read_csv('cleanedData.csv')
+# Load dataset
+@st.cache_data
+def load_data():
+    return pd.read_csv('cleanedData.csv').drop(['Unnamed: 0'],axis=1)
 
-st.title("Vehicle Prdiction Model")
+cleaned_data = load_data()
 
-st.write("## Statistics")
+# -----------------------------------------
+# 🏠 HEADER SECTION
+# -----------------------------------------
+st.title("🚘 Vehicle Price Analysis & Insights Dashboard")
+st.text(" stimate your vehicle's market value instantly using key specs like make, model, and engine type, powered " \
+"by a data-driven Random Forest model.")
 
-st.write('### Shape of the data: ')
-st.write(f'Rows : {cleaned_data.shape[0]}')
-st.write(f'Cols( 17 ) : `{", ".join(list(cleaned_data.columns))}`')
 
-buffer = io.StringIO()
-cleaned_data.info(buf=buffer)
-info = buffer.getvalue()
+st.markdown("---")
 
-st.divider()
+# -----------------------------------------
+# 📊 DATA OVERVIEW
+# -----------------------------------------
+st.header("📋 Dataset Overview")
+st.caption("Note: All of statistics and Plots are generated from Cleaned data they may vary from original dataset")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Rows", f"{cleaned_data.shape[0]}")
+col2.metric("Columns", f"{cleaned_data.shape[1]}")
+col3.metric("Unique Makers", f"{cleaned_data['make'].nunique()}")
+col4.metric("Record Year", f"{cleaned_data['year'].min()}-{cleaned_data['year'].max()}")
 
-st.write('### Data Info')
-st.text(info[37:])
+with st.expander("🧾 View Descriptive Statistics"):
+    st.dataframe(cleaned_data.describe())
 
-st.divider()
+with st.expander("👀 Preview Dataset and Columns"):
+    st.write(f"Columns: {list(cleaned_data.columns)}")
+    st.dataframe(cleaned_data.head())
 
-st.write('### Data Described')
-st.write(cleaned_data.describe())
+st.markdown("---")
 
-st.write('## Exploratory Data Analysis')
+# -----------------------------------------
+# 📈 EDA WITH TABS
+# -----------------------------------------
+st.header("📊 Exploratory Data Analysis (EDA)")
 
-st.write('### Price Distribution')
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "💰 Price Distribution",
+    "🏭 Car Makers",
+    "⛽ Fuel Type Distribution",
+    "🚙 Body Type Distribution",
+    "⚙️ Drive Train Distribution",
+    "💵 Total Sales by Maker"
+])
 
-fig = plt.figure(figsize=(7,4))
-ax = sns.histplot(cleaned_data['price'])
-ax.bar_label(ax.containers[0])
-ax.set_xlabel("Price ( In USD $ )",fontdict={"weight":"bold","size":14})
-ax.set_ylabel("Count",fontdict={"weight":"bold","size":14})
-fig.tight_layout()
+# --- Tab 1: Price Distribution ---
+with tab1:
+    st.subheader("💰 Price Distribution")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.histplot(cleaned_data['price'], kde=True, ax=ax, color='skyblue')
+    ax.set_xlabel("Price (USD)", fontdict={"weight": "bold", "size": 12})
+    ax.set_ylabel("Count", fontdict={"weight": "bold", "size": 12})
+    st.pyplot(fig)
 
-st.pyplot(fig)
+# --- Tab 2: Car Makers ---
+with tab2:
+    st.subheader("🏭 Most Common Car Makers")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.barplot(y=cleaned_data['make'].value_counts().index[:10],
+                x=cleaned_data['make'].value_counts().values[:10],
+                ax=ax, palette='viridis')
+    ax.set_xlabel("Count", fontdict={"weight": "bold", "size": 12})
+    ax.set_ylabel("Maker", fontdict={"weight": "bold", "size": 12})
+    st.pyplot(fig)
 
-st.write('### Value Count of each Car Maker')
+# --- Tab 3: Fuel Type ---
+with tab3:
+    st.subheader("⛽ Fuel Type Distribution")
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.countplot(y='fuel', data=cleaned_data, palette='mako', ax=ax)
+    ax.set_xlabel("Count", fontdict={"weight": "bold", "size": 12})
+    ax.set_ylabel("Fuel Type", fontdict={"weight": "bold", "size": 12})
+    st.pyplot(fig)
 
-fig = plt.figure(figsize=(8,6))
+# --- Tab 4: Body Type ---
+with tab4:
+    st.subheader("🚙 Body Type Distribution")
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.countplot(y='body', data=cleaned_data, palette='Set2', ax=ax)
+    ax.set_xlabel("Count", fontdict={"weight": "bold", "size": 12})
+    ax.set_ylabel("Body Type", fontdict={"weight": "bold", "size": 12})
+    st.pyplot(fig)
 
-ax = sns.barplot(data=cleaned_data['make'].value_counts(),errorbar=None,estimator="sum",orient="y",width=1,gap=0.2)
-ax.bar_label(ax.containers[0])
-ax.set_xlabel("Count",fontdict={"weight":"bold","size":14})
-ax.set_ylabel("Maker's Name",fontdict={"weight":"bold","size":14})
+# --- Tab 5: Drive Train ---
+with tab5:
+    st.subheader("⚙️ Drive Train Distribution")
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.countplot(x='drivetrain', data=cleaned_data, palette='coolwarm', ax=ax)
+    ax.set_xlabel("Drive Train", fontdict={"weight": "bold", "size": 12})
+    ax.set_ylabel("Count", fontdict={"weight": "bold", "size": 12})
+    st.pyplot(fig)
 
-fig.tight_layout()
-st.pyplot(fig)
+# --- Tab 6: Total Sales by Maker ---
+with tab6:
+    st.subheader("💵 Total Sales Value by Maker")
+    make_price = cleaned_data.groupby('make', as_index=False)['price'].sum()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.scatterplot(
+        data=make_price,
+        x='price', y='make', size='price', hue='price',
+        sizes=(50, 500), palette='viridis', legend=False, ax=ax
+    )
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f'${x/1000:.0f}k'))
+    ax.set_xlabel("Total Price (USD)", fontdict={"weight": "bold", "size": 12})
+    ax.set_ylabel("Maker", fontdict={"weight": "bold", "size": 12})
+    st.pyplot(fig)
 
-st.write('### Fuel Distribution')
+st.markdown("---")
 
-fig = plt.figure(figsize=(8,4))
-ax = sns.barplot(cleaned_data['fuel'].value_counts(),errorbar=None,orient='y')
-ax.bar_label(ax.containers[0])
-ax.set_xlabel("Count",fontdict={"weight":"bold","size":14})
-ax.set_ylabel("Fuel Type",fontdict={"weight":"bold","size":14})
-fig.tight_layout()
-st.pyplot(fig)
+# -----------------------------------------
+# 📈 INSIGHTS SUMMARY
+# -----------------------------------------
+st.header("🧠 Key Insights & Summary")
 
-st.write('### Body Distribution')
+st.markdown("""
+<style>
+.insights {
+    font-size:16px;
+    line-height:1.6;
+}
+.insights b {
+    color:#1E90FF; /* Light blue accent */
+}
+</style>
+<div class='insights'>
+<ol>
+<li>Average car prices fall between <b>$30K – $60K</b>.</li>
+<li>Top 5 most popular car makers: <b>Jeep, Hyundai, Dodge, Ford, Ram</b>.</li>
+<li>Gasoline-powered vehicles dominate the market.</li>
+<li><b>SUVs</b> are the most preferred body type.</li>
+<li>All-wheel and 4-wheel drive vehicles are widely used.</li>
+<li><b>Jeep</b> generated over <b>$9000K</b> in total sales, followed by <b>Hyundai</b> and <b>Ram</b> (Approx. <b>$4000K</b> each).</li>
+</ol>
+</div>
+""", unsafe_allow_html=True)
 
-fig = plt.figure(figsize=(8,4))
-ax = sns.barplot(cleaned_data['body'].value_counts(),errorbar=None,orient='y')
-ax.bar_label(ax.containers[0],fontsize = 10)
-ax.set_xlabel("Count",fontdict={"weight":"bold","size":14})
-ax.set_ylabel("Body Type",fontdict={"weight":"bold","size":14})
-fig.tight_layout()
-st.pyplot(fig)
 
-st.write('### Types of Drive train')
-
-fig = plt.figure(figsize=(7,5))
-
-ax = sns.histplot(cleaned_data['drivetrain'])
-ax.bar_label(ax.containers[0])
-ax.tick_params(axis='x')
-ax.set_xlabel("Drive Trains",fontdict={"weight":"bold","size":14})
-ax.set_ylabel("Count",fontdict={"weight":"bold","size":14})
-
-fig.tight_layout()
-st.pyplot(fig)
-
-st.write('### Total spending by maker (sum of prices)')
-
-make_price = cleaned_data.groupby('make', as_index=False)['price'].sum()
-fig = plt.figure(figsize=(11,8))
-ax = sns.scatterplot(
-    data=make_price,
-    x='price',
-    y='make',
-    size='price',
-    hue='price',
-    sizes=(50, 500),
-    palette='viridis',
-    legend=False
-)
-
-max_price = make_price['price'].max()
-ticks = np.linspace(0, max_price, 6)
-ax.set_xticks(ticks)
-ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f'${x/1000:.0f}k'))
-
-ax.set_xlabel('Total Price (USD)',fontdict={"weight":"bold","size":14})
-ax.set_ylabel("Maker's Name",fontdict={"weight":"bold","size":14})
-fig.tight_layout()
-st.pyplot(fig)
-
-st.divider()
-
-st.write("## Results")
-st.text('1. Avg Price range of cars are $30k - $60k')
-st.write('''
-         2. These are the Top 5 Most selling cars
-            - JEEP
-            - Hyundai
-            - Dodge
-            - Ford
-            - Ram
-         ''')
-st.text('3. Gasoline Cars Performed best in the market')
-st.text('4. Customer preferred SUV body type cars the most')
-st.text('5. All-Wheel and 4-Wheel drive cars are used more')
-st.text('6. Jeep made over $9000k+ after Hyundai and Ram which made over 4000k+ each in car selling')
+st.markdown("---")
+st.caption("© 2025 Vehicle Insights Dashboard | Created by Shaurya Srivastava 🚗💡")
